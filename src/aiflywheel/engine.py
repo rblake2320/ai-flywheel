@@ -62,6 +62,7 @@ class FlywheelEngine:
     lift: LiftLedger = field(default_factory=LiftLedger)
     promotion: PromotionGate | None = None  # optional loop-closing promote/rollback gate
     reflector: object | None = None         # optional WhyStore: self-reflection on rollback
+    recall: object | None = None            # optional RecallProvider: brain's /recall client
     verifier: RewardVerifier | None = None
     _queue: list[Interaction] = field(default_factory=list)
     _promotions: int = 0
@@ -202,12 +203,20 @@ class FlywheelEngine:
             pass
 
     def seen_regression_before(self, batch: list[Interaction]) -> bool:
-        """Recall: has a batch like this regressed the model before?"""
-        if self.reflector is None:
-            return False
+        """Recall: has a batch like this regressed the model before?
+
+        Prefers an injected RecallProvider (the brain's governed /recall — one
+        recall system for the whole organism); falls back to the local WhyStore
+        as a bootstrap only when no provider is wired.
+        """
         domains = sorted({(i.domain or "?") for i in batch})
         tenants = sorted({i.tenant_id for i in batch})
-        return bool(self.reflector.seen_before(f"regression domains {domains} tenants {tenants}"))
+        query = f"regression domains {domains} tenants {tenants}"
+        if self.recall is not None:
+            return bool(self.recall.seen_before(query))
+        if self.reflector is not None:
+            return bool(self.reflector.seen_before(query))
+        return False
 
     def flush(self) -> None:
         """Force-train whatever is queued (e.g. at shutdown)."""

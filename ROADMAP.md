@@ -22,6 +22,27 @@ Protocol**, installed via extras.
 - **Real accelerometer** (`metrics/accelerometer.py`): marginal-value-per-batch
   (the true "is it stalling" signal) + diversity/coverage, not just mean reward.
 
+## The boundary (read before any integration work)
+
+**This engine is the learning organ, not the brain.** A separate governed-recall
+"cortex" (budget-gated, provenance-chained, trust-promoted multi-store memory)
+is a PRIVATE, patent-adjacent system. The ONLY things that may cross into this
+public repo are: (1) the WhyCase outbox schema, and (2) a thin HTTP/MCP client to
+the brain's `/recall`. No cortex logic, no event-log ownership, no second memory.
+Same rule as pre-patent protocols: decide/file before anything else crosses.
+
+## Shipped (v0.7.0) — brain-ready integration seams
+
+- **EventLogSource** (`ingest/event_log.py`): tails the brain's append-only event
+  log (JSONL, offset-tracked, partial-line tolerant) and maps events to
+  Interactions. The flywheel CONSUMES the brain's single honest event source — it
+  never opens its own capture path. Unknown-tenant events are skipped, not crashed.
+- **Pluggable recall** (`reflection/recall.py`): `RecallProvider` protocol with
+  `LocalRecall` (WhyStore bootstrap) and `RemoteRecall` (thin stdlib HTTP client
+  to the brain's `/recall`, fails open). The engine prefers an injected provider,
+  so the moment the brain's `/recall` exists the flywheel becomes its client —
+  one recall system for the whole organism, never two.
+
 ## Shipped (v0.5.0–v0.6.0) — closed the loop, made it self-reflective
 
 - **Loop closure** (`metrics/promotion.py`): snapshot → train → evaluate →
