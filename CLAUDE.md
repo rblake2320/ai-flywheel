@@ -1,19 +1,28 @@
 # CLAUDE.md — ai-flywheel
 
-This repo holds one authoritative document: `FLYWHEEL.md`, the single source
-of truth for the AI Army flywheel architecture (how the various product
-copilots and specialists feed data back into a shared flywheel so each one
-gets smarter from the others' data). **Private repo.**
+This repo is the **reference implementation** of a horizontal, multi-tenant,
+business-agnostic AI data flywheel engine (package `aiflywheel`, under `src/`).
+It also keeps `FLYWHEEL.md`, the architecture reference. **PUBLIC repo.**
 
 ## What this repo is
 
-- A docs-only reference repo. It does not contain code, credentials, or the
-  actual running systems.
-- The real infrastructure and code this document describes live in the
-  `ai-business` project (on the DGX Spark machines / the `Ai-Army` GitHub
-  repo) — this repo is the portable, always-reachable copy of the
-  architecture doc itself, so it can be read/updated from any machine without
-  wading through that much larger, noisier repo.
+- A real, runnable Python engine — the business-agnostic CORE of the flywheel.
+  Vertical copilots (MK Copilot & siblings) are TENANTS that plug in; they are
+  never part of the core. See `README.md` for the model.
+- Because it is business-agnostic, it is safe to be public: **no tenant's
+  proprietary data, credentials, or business specifics ever belong here.** That
+  is enforced in code by the tenant boundary (`core/interaction.py` +
+  `tenancy/tenant.py`), and it is also a hard rule for this repo's contents.
+- `FLYWHEEL.md` remains the architecture doc. The larger private `ai-business`
+  project (DGX Sparks) holds the tenant-specific systems this engine serves.
+
+## Commands
+
+```bash
+pip install -e ".[dev]"
+ruff check src tests
+pytest -q
+```
 
 ## Canonical vs. speculative content — read this before trusting a claim
 
