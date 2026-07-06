@@ -81,11 +81,55 @@ def demo() -> int:
     return 0
 
 
+def organism_demo() -> int:
+    """Run the whole flywheel as one connected organism — everything feeds
+    everything. Shows the connections firing and the novel directions it seeks."""
+    from aiflywheel.core.learner import FewShotLearner
+    from aiflywheel.metrics.promotion import PromotionGate
+    from aiflywheel.organism import Organism
+
+    eng = FlywheelEngine(batch_size=15, learner=FewShotLearner(),
+                         promotion=PromotionGate())
+    for tid, dom in [("mk-copilot", "retail"), ("realty-bot", "real_estate"),
+                     ("car-sales", "automotive")]:
+        eng.add_tenant(Tenant(tid, domain=dom))
+    clients = [(FlywheelClient(eng, t), d) for t, d in
+               [("mk-copilot", "retail"), ("realty-bot", "real_estate"),
+                ("car-sales", "automotive")]]
+    for n in range(90):
+        c, dom = clients[n % 3]
+        c.report(input_text=f"{dom} question {n}", output_text=f"good {dom} answer {n}",
+                 reward=0.7 + 0.3 * ((n % 4) / 3), domain=dom,
+                 cross_learning=f"{dom} pattern {n % 6} improves outcomes")
+
+    org = Organism(engine=eng)
+    print("ai-flywheel ORGANISM — one connected complex run\n" + "=" * 48)
+    report = org.run_cycle()
+    print("\nconnections that fired this cycle:")
+    for c in report.connections_fired:
+        print(f"  • {c}")
+    print(f"\nself-awareness : confidence {report.confidence} ({report.verdict}), "
+          f"consistent={report.self_consistent}")
+    print(f"explore/exploit: budget {report.explore_budget} novel directions "
+          f"(low confidence → explore more)")
+    print("\nnovel directions it chose to explore (self-directed, nobody set these):")
+    for f in report.frontiers:
+        print(f"  [{f.novelty}] {f.source:9} {f.description[:60]}")
+    exps = org.frontiers_as_experiments(report.frontiers)
+    print(f"\n{len(exps)} became SYNTHETIC experiments — the collapse floor bounds "
+          "them automatically (curiosity that can't collapse the model)")
+    print("\n=> THE ORGANISM IS RUNNING — it learns, corrects, reflects, knows "
+          "itself, AND seeks the unknown")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     if argv and argv[0] == "demo":
         return demo()
-    print("usage: aiflywheel demo   (or: python -m aiflywheel demo)")
+    if argv and argv[0] == "organism":
+        return organism_demo()
+    print("usage: aiflywheel [demo|organism]")
     return 1
 
 

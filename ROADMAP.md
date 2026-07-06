@@ -31,6 +31,27 @@ public repo are: (1) the WhyCase outbox schema, and (2) a thin HTTP/MCP client t
 the brain's `/recall`. No cortex logic, no event-log ownership, no second memory.
 Same rule as pre-patent protocols: decide/file before anything else crosses.
 
+## Shipped (v0.9.0) — self-explore + the organism (everything connects)
+
+The Disney model in code: not stacked faculties, one connected complex run.
+
+- **Self-explore** (`explore/curiosity.py`): open-ended, curiosity-driven
+  exploration — the opposite pole of self-learn (targeted research). Grounded in
+  real prior art (novelty search / MAP-Elites, Schmidhuber curiosity). A
+  `CoverageMap` archives what's been seen; the `Explorer` seeks the NOVEL via
+  cross-domain transfer (the Disney mechanism — carry a retail pattern into real
+  estate) + pattern mixing, and turns the self-model's blind spots into
+  exploration targets. Pluggable `IdeaSource` (combinatorial core; LLM/web plugs
+  in for genuinely open-ended invention).
+- **The organism** (`organism.py`): `run_cycle()` connects every faculty —
+  self-model GAPS drive exploration, CONFIDENCE governs the explore/exploit
+  balance (low confidence explores more; this is how self-learn and self-explore
+  share ONE axis), FRONTIERS become next-cycle experiments, WhyCases feed
+  curation. `aiflywheel organism` shows the connections firing.
+- **Emergent safety, free**: explored hypotheses are SYNTHETIC, so the
+  RealDataFloor automatically bounds how much curiosity can influence training —
+  exploration that cannot collapse the model, with no separate limiter.
+
 ## Shipped (v0.8.0) — operational self-awareness (a self-model)
 
 NOT sentience — a self-model in the engineering sense. `introspection/self_model.py`
