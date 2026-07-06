@@ -61,6 +61,7 @@ class FlywheelEngine:
     curator: Curator | None = None          # optional multi-stage intake valve
     lift: LiftLedger = field(default_factory=LiftLedger)
     promotion: PromotionGate | None = None  # optional loop-closing promote/rollback gate
+    reflector: object | None = None         # optional WhyStore: self-reflection on rollback
     verifier: RewardVerifier | None = None
     _queue: list[Interaction] = field(default_factory=list)
     _promotions: int = 0
@@ -152,6 +153,7 @@ class FlywheelEngine:
                 self.learner.rollback(snap)
                 self._rollbacks += 1
                 new_quality = self.learner.quality()
+                self._reflect_on_rollback(decision, batch)
             else:
                 self._promotions += 1
 
@@ -162,6 +164,50 @@ class FlywheelEngine:
             real_fraction=real_fraction(batch),
         )
         self.threshold.update()
+
+    def _reflect_on_rollback(self, decision, batch: list[Interaction]) -> None:
+        """Self-reflect: record WHY this batch regressed as a WhyCase, so the
+        wheel can recall and avoid the pattern instead of just undoing it."""
+        if self.reflector is None:
+            return
+        tenants = sorted({i.tenant_id for i in batch})
+        domains = sorted({(i.domain or "?") for i in batch})
+        pattern = f"regression from domains={domains} tenants={tenants}"
+        try:
+            self.reflector.record(
+                title=f"training regression ({decision.reason})",
+                root_cause=(
+                    f"batch from tenants {tenants} in domains {domains} lowered model "
+                    f"quality {decision.prev_quality}->{decision.new_quality}"
+                ),
+                why_not_caught=(
+                    "passed the intake valve + real-data floor but degraded the model; "
+                    "preventive filters can't see downstream quality — only the "
+                    "promotion gate caught it after training"
+                ),
+                prevent_next_time=(
+                    f"raise scrutiny for batches matching: {pattern}; consider tighter "
+                    "dedup/diversity or a higher reward bar for these sources"
+                ),
+                generalizable_pattern=pattern,
+                measured_facts={
+                    "prev_quality": decision.prev_quality,
+                    "new_quality": decision.new_quality,
+                    "batch_size": len(batch),
+                    "tenants": tenants,
+                    "domains": domains,
+                },
+            )
+        except Exception:  # noqa: BLE001 - reflection must never break the loop
+            pass
+
+    def seen_regression_before(self, batch: list[Interaction]) -> bool:
+        """Recall: has a batch like this regressed the model before?"""
+        if self.reflector is None:
+            return False
+        domains = sorted({(i.domain or "?") for i in batch})
+        tenants = sorted({i.tenant_id for i in batch})
+        return bool(self.reflector.seen_before(f"regression domains {domains} tenants {tenants}"))
 
     def flush(self) -> None:
         """Force-train whatever is queued (e.g. at shutdown)."""
@@ -192,6 +238,7 @@ class FlywheelEngine:
             "model_quality": self.learner.quality(),
             "promotions": self._promotions,
             "rollbacks": self._rollbacks,
+            "why_cases": self.reflector.count() if self.reflector is not None else 0,
         }
 
     # --- durability ---

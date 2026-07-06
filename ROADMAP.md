@@ -22,6 +22,24 @@ Protocol**, installed via extras.
 - **Real accelerometer** (`metrics/accelerometer.py`): marginal-value-per-batch
   (the true "is it stalling" signal) + diversity/coverage, not just mean reward.
 
+## Shipped (v0.5.0–v0.6.0) — closed the loop, made it self-reflective
+
+- **Loop closure** (`metrics/promotion.py`): snapshot → train → evaluate →
+  PROMOTE/ROLLBACK. A regressing batch is reverted to the pre-train snapshot —
+  the wheel *cannot make itself worse*. `Revertable` snapshot/rollback on all
+  learners incl. the real TRL one.
+- **Real reward source** (`core/reward.JudgeRewardVerifier`): an independent
+  Judge scores answers instead of trusting the tenant's self-reported reward.
+- **Self-reflection** (`reflection/whycase.py`): every rollback becomes a
+  durable, recallable WhyCase in why-engine's schema. Before training the wheel
+  can RECALL whether a similar batch regressed before — it learns from its own
+  corrections instead of just undoing them.
+- **Fact layer (no fakes)**: a WhyCase carries the ACTUAL measured numbers
+  (real prev/new quality, batch, tenants); a "regression" case whose numbers
+  don't show a real regression is REFUSED. Truth-checked, not filler.
+- **Durable**: WhyCases are fsync'd atomic writes that reload on restart —
+  a recorded lesson is never lost.
+
 ## Shipped (v0.4.0) — from hardened engine to best-in-class
 
 - **Multi-stage Curator** (`curation/curator.py`): reward → semantic-dedup →
