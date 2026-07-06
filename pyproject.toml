@@ -1,6 +1,6 @@
 [project]
 name = "aiflywheel"
-version = "0.1.0"
+version = "0.2.0"
 description = "A horizontal, multi-tenant, business-agnostic AI data flywheel engine. Vertical copilots plug in as isolated tenants; each gets smarter from the anonymized learnings of all."
 readme = "README.md"
 requires-python = ">=3.10"

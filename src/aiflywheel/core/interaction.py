@@ -63,11 +63,16 @@ class Interaction:
         return out
 
     def has_private_leak(self, blob: dict[str, Any]) -> bool:
-        """True if `blob` contains any of THIS interaction's private content.
+        """True if any of THIS interaction's private content appears in a VALUE
+        of `blob`.
 
+        Checks values only — structural key names (e.g. "timestamp") are not
+        leaked content, so matching against them would be a false positive.
         Used by the isolation guard to assert nothing proprietary escaped.
         """
         needles = [self.input_text, self.output_text, self.system_prompt]
         needles = [n for n in needles if n]
-        hay = repr(blob)
+        if not needles:
+            return False
+        hay = " \x00 ".join(str(v) for v in blob.values())
         return any(n in hay for n in needles)

@@ -22,8 +22,10 @@ from dataclasses import dataclass, field
 from aiflywheel.adaptive.threshold import AdaptiveThreshold
 from aiflywheel.core.interaction import Interaction
 from aiflywheel.core.learner import Learner, SimulatedLearner
+from aiflywheel.core.reward import RewardTracker, RewardVerifier, clamp_reward
 from aiflywheel.learning.hub import CrossLearningHub, SharedLearning
 from aiflywheel.metrics.accelerometer import Accelerometer
+from aiflywheel.safety.sanitizer import LearningSanitizer
 from aiflywheel.tenancy.tenant import IsolationGuard, Tenant, TenantRegistry
 
 
@@ -33,6 +35,9 @@ class SubmitResult:
     threshold: float
     trained: bool = False
     model_quality: float | None = None
+    reward: float | None = None          # the reward actually used (post-validation)
+    shared: bool = False                  # did a sanitized learning cross to the hub?
+    reject_reason: str = ""               # if a learning was blocked from sharing
 
 
 @dataclass
@@ -46,6 +51,9 @@ class FlywheelEngine:
     accel: Accelerometer = field(default_factory=Accelerometer)
     registry: TenantRegistry = field(default_factory=TenantRegistry)
     guard: IsolationGuard = field(default_factory=IsolationGuard)
+    sanitizer: LearningSanitizer = field(default_factory=LearningSanitizer)
+    rewards: RewardTracker = field(default_factory=RewardTracker)
+    verifier: RewardVerifier | None = None
     _queue: list[Interaction] = field(default_factory=list)
 
     # --- tenant lifecycle ---
@@ -60,27 +68,41 @@ class FlywheelEngine:
         # 1) tenant boundary: redact to shareable-only (raises on leak)
         self.guard.check_outbound(interaction)
 
-        # 2) self-tuning quality valve
-        score = interaction.reward_score if interaction.reward_score is not None else 0.0
-        accepted = self.threshold.observe(score)
+        # 2) reward validation: never trust a raw tenant score
+        score = clamp_reward(interaction.reward_score)
+        if score is None:
+            score = 0.0
+        if self.verifier is not None:
+            score = clamp_reward(self.verifier.verify(tenant.tenant_id, score)) or 0.0
+        interaction.reward_score = score
+        self.rewards.record(tenant.tenant_id, score)
 
-        result = SubmitResult(accepted=accepted, threshold=self.threshold.value)
+        # 3) self-tuning quality valve
+        accepted = self.threshold.observe(score)
+        result = SubmitResult(
+            accepted=accepted, threshold=self.threshold.value, reward=score
+        )
         if not accepted:
             return result
 
-        # 3) accepted → queue for training + contribute anonymized learning
+        # 4) accepted → queue for training + contribute a SANITIZED learning
         self._queue.append(interaction)
         if tenant.contributes and interaction.cross_learning:
-            self.hub.contribute(
-                SharedLearning(
-                    source_tenant=tenant.tenant_id,
-                    domain=interaction.domain or tenant.domain,
-                    lesson=interaction.cross_learning,
-                    reward_score=score,
+            clean = self.sanitizer.sanitize(interaction.cross_learning)
+            if clean.ok:
+                self.hub.contribute(
+                    SharedLearning(
+                        source_tenant=tenant.tenant_id,
+                        domain=interaction.domain or tenant.domain,
+                        lesson=clean.text,
+                        reward_score=score,
+                    )
                 )
-            )
+                result.shared = True
+            else:
+                result.reject_reason = clean.reason
 
-        # 4) batch full → train, measure acceleration, re-tune threshold
+        # 5) batch full → train, measure acceleration, re-tune threshold
         if len(self._queue) >= self.batch_size:
             self._flush()
             result.trained = True
@@ -123,3 +145,16 @@ class FlywheelEngine:
             "acceleration": self.accel.report(),
             "model_quality": self.learner.quality(),
         }
+
+    # --- durability ---
+    def save(self, path: str) -> None:
+        """Persist the flywheel's shareable momentum (hub + accelerometer)."""
+        from aiflywheel.persistence.store import FlywheelStore
+
+        FlywheelStore(path).save(self.hub, self.accel)
+
+    def load(self, path: str) -> None:
+        """Rehydrate hub + accelerometer so the wheel keeps its momentum."""
+        from aiflywheel.persistence.store import FlywheelStore
+
+        FlywheelStore(path).load(self.hub, self.accel)

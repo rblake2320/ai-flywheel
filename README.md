@@ -97,10 +97,28 @@ src/aiflywheel/
   engine.py             wires the full loop
 ```
 
+## Boundary hardening (v0.2.0)
+
+The tenant boundary is only as strong as its weakest crossing. v0.2.0 closes three:
+
+- **`safety/sanitizer.py`** — scrubs every `cross_learning` before it may cross:
+  redacts emails, phones, currency, long digit runs, tenant-declared secret
+  terms; hard-blocks configured phrases; **fails closed** (a learning that can't
+  be safely shared never enters the hub). Closes the free-text leak.
+- **`core/reward.py`** — the engine no longer trusts tenant-reported reward:
+  it clamps to [0,1], supports an independent `RewardVerifier` that can
+  down-weight or veto, and tracks per-tenant reward stats to flag a tenant whose
+  self-scores are implausibly high.
+- **`persistence/store.py`** — snapshots the hub + accelerometer to JSONL so the
+  wheel keeps its momentum across restarts. Persists shareable, anonymized state
+  only — never raw interactions.
+
 ## Status
 
-v0.1.0 — working core, 15 passing tests, lint-clean. Business-agnostic and
-open by design: no tenant ever puts proprietary data here. Roadmap: pluggable
-real learners, persistence, per-tenant reward models, richer anonymization.
+v0.2.0 — working core + hardened boundary, **26 passing tests**, lint-clean,
+CI green. Business-agnostic and open by design: no tenant ever puts proprietary
+data here, and the sanitizer enforces it. Roadmap: pluggable real learners
+(SFT/DPO on GPU behind the `Learner` protocol), per-tenant reward models,
+provenance/audit trail, richer anonymization.
 
 MIT.
