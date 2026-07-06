@@ -28,6 +28,7 @@ from aiflywheel.curation.curator import Curator
 from aiflywheel.learning.hub import CrossLearningHub, SharedLearning
 from aiflywheel.metrics.accelerometer import Accelerometer
 from aiflywheel.metrics.attribution import LiftLedger
+from aiflywheel.metrics.promotion import ROLLBACK, PromotionGate
 from aiflywheel.safety.sanitizer import LearningSanitizer
 from aiflywheel.tenancy.tenant import IsolationGuard, Tenant, TenantRegistry
 
@@ -59,8 +60,11 @@ class FlywheelEngine:
     floor: RealDataFloor = field(default_factory=RealDataFloor)
     curator: Curator | None = None          # optional multi-stage intake valve
     lift: LiftLedger = field(default_factory=LiftLedger)
+    promotion: PromotionGate | None = None  # optional loop-closing promote/rollback gate
     verifier: RewardVerifier | None = None
     _queue: list[Interaction] = field(default_factory=list)
+    _promotions: int = 0
+    _rollbacks: int = 0
 
     # --- tenant lifecycle ---
     def add_tenant(self, tenant: Tenant) -> Tenant:
@@ -132,10 +136,28 @@ class FlywheelEngine:
         mean_reward = sum((i.reward_score or 0.0) for i in batch) / len(batch)
         n_sources = len({i.tenant_id for i in batch})
         n_domains = len({(i.domain or "") for i in batch})
+
+        # CLOSE THE LOOP: snapshot → train → evaluate → promote/rollback.
+        prev_quality = self.learner.quality()
+        snap = self.learner.snapshot() if hasattr(self.learner, "snapshot") else None
         self.learner.train(batch)
+        new_quality = self.learner.quality()
+
+        if self.promotion is not None:
+            answer_fn = getattr(self.learner, "answer", None)
+            # wrap answer(domain) as answer(prompt) for the golden set if present
+            wrapped = (lambda p: answer_fn(p)) if answer_fn else None
+            decision = self.promotion.decide(prev_quality, new_quality, answer_fn=wrapped)
+            if decision.action == ROLLBACK and snap is not None:
+                self.learner.rollback(snap)
+                self._rollbacks += 1
+                new_quality = self.learner.quality()
+            else:
+                self._promotions += 1
+
         self.accel.record(
             mean_reward, len(batch), n_sources,
-            model_quality=self.learner.quality(),
+            model_quality=new_quality,
             n_domains=n_domains,
             real_fraction=real_fraction(batch),
         )
@@ -168,6 +190,8 @@ class FlywheelEngine:
             "hub": self.hub.coverage(),
             "acceleration": self.accel.report(),
             "model_quality": self.learner.quality(),
+            "promotions": self._promotions,
+            "rollbacks": self._rollbacks,
         }
 
     # --- durability ---

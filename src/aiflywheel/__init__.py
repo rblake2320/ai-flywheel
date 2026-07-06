@@ -4,7 +4,7 @@ from aiflywheel.core.learner import Learner, SimulatedLearner
 from aiflywheel.engine import FlywheelEngine, SubmitResult
 from aiflywheel.tenancy.tenant import IsolationError, IsolationGuard, Tenant, TenantRegistry
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 __all__ = [
     "FlywheelEngine", "SubmitResult", "Interaction",
     "Tenant", "TenantRegistry", "IsolationGuard", "IsolationError",

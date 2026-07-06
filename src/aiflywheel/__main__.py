@@ -16,6 +16,7 @@ from aiflywheel.contract.sdk import FlywheelClient
 from aiflywheel.core.learner import FewShotLearner
 from aiflywheel.curation.curator import default_curator
 from aiflywheel.engine import FlywheelEngine
+from aiflywheel.metrics.promotion import PromotionGate
 from aiflywheel.tenancy.tenant import Tenant
 
 
@@ -24,6 +25,7 @@ def demo() -> int:
         batch_size=20,
         learner=FewShotLearner(bank_size=6),
         curator=default_curator(min_reward=0.3),
+        promotion=PromotionGate(),          # close the loop: promote/rollback
     )
     tenants = [("mk-copilot", "retail"), ("realty-bot", "real_estate"),
                ("car-sales", "automotive")]
@@ -50,6 +52,8 @@ def demo() -> int:
     print(f"\nmodel quality : {h['model_quality']} (peak {acc['peak_quality']})")
     print(f"acceleration  : climbed then {acc['status'].lower()} "
           f"(did_accelerate={acc['did_accelerate']}, {acc['batches']} batches)")
+    print(f"loop closure  : {h['promotions']} promotions, {h['rollbacks']} rollbacks "
+          f"(self-corrects — a regressing train is reverted)")
     print(f"hub           : {h['hub']['total_learnings']} learnings, "
           f"networked={h['hub']['is_networked']}, "
           f"domains={h['hub']['domains']}")

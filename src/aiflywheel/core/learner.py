@@ -28,6 +28,24 @@ class Learner(Protocol):
         ...
 
 
+@runtime_checkable
+class Revertable(Protocol):
+    """A Learner that can be rolled back — required to CLOSE the loop safely.
+
+    The promotion gate snapshots before training and rolls back if the new model
+    regresses. Without this, a bad batch permanently degrades the model; with it,
+    the flywheel can train freely because it can always undo.
+    """
+
+    def snapshot(self):
+        """Capture current model state; returns an opaque token."""
+        ...
+
+    def rollback(self, snap) -> None:
+        """Restore a previously captured state."""
+        ...
+
+
 class SimulatedLearner:
     """Deterministic stand-in trainer used for tests and demos.
 
@@ -43,6 +61,12 @@ class SimulatedLearner:
 
     def quality(self) -> float:
         return round(self._quality, 4)
+
+    def snapshot(self):
+        return self._quality
+
+    def rollback(self, snap) -> None:
+        self._quality = snap
 
     def train(self, batch: list[Interaction]) -> float:
         if not batch:
@@ -108,3 +132,12 @@ class FewShotLearner:
 
     def exemplars(self, domain: str) -> list[Interaction]:
         return list(self._bank.get(domain, []))
+
+    def snapshot(self):
+        # deep-ish copy: dict of lists (Interactions are immutable enough here)
+        return ({d: list(lst) for d, lst in self._bank.items()}, self._trained)
+
+    def rollback(self, snap) -> None:
+        bank, trained = snap
+        self._bank = {d: list(lst) for d, lst in bank.items()}
+        self._trained = trained

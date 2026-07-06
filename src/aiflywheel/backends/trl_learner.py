@@ -65,6 +65,17 @@ class TRLLearner:
     def quality(self) -> float:
         return round(self._quality, 4)
 
+    def snapshot(self):
+        """Capture the promoted state so a regressing train can be undone.
+
+        Restores the active-adapter pointer + quality; a rejected adapter's files
+        stay on disk (harmless) but are never pointed at again.
+        """
+        return (self._adapter_path, self._quality, self._steps)
+
+    def rollback(self, snap) -> None:
+        self._adapter_path, self._quality, self._steps = snap
+
     def train(self, batch: list[Interaction]) -> float:
         rows = self._to_rows(batch)
         if not rows:

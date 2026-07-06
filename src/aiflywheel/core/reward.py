@@ -42,6 +42,28 @@ def clamp_reward(value: float | None) -> float | None:
 
 
 @dataclass
+class JudgeRewardVerifier:
+    """A REAL reward source: score reward with a Judge instead of trusting the
+    tenant. Blends the tenant's self-report with an independent judge score so a
+    tenant can't inflate its way into the training set. weight=1.0 ignores the
+    tenant entirely; 0.5 averages them.
+    """
+
+    judge: object                       # metrics.judge.Judge
+    weight: float = 0.7                 # how much to trust the judge vs the tenant
+    prompt: str = ""
+    answer: str = ""
+
+    def verify(self, tenant_id: str, reported: float) -> float:
+        try:
+            j = float(self.judge.score(self.prompt, self.answer))
+        except Exception:  # noqa: BLE001 - a broken judge falls back to reported
+            return reported
+        j = max(0.0, min(1.0, j))
+        return self.weight * j + (1 - self.weight) * reported
+
+
+@dataclass
 class RewardTracker:
     """Per-tenant reward stats — a lightweight trust signal."""
 
