@@ -24,8 +24,10 @@ from aiflywheel.core.interaction import Interaction
 from aiflywheel.core.learner import Learner, SimulatedLearner
 from aiflywheel.core.provenance import RealDataFloor, real_fraction
 from aiflywheel.core.reward import RewardTracker, RewardVerifier, clamp_reward
+from aiflywheel.curation.curator import Curator
 from aiflywheel.learning.hub import CrossLearningHub, SharedLearning
 from aiflywheel.metrics.accelerometer import Accelerometer
+from aiflywheel.metrics.attribution import LiftLedger
 from aiflywheel.safety.sanitizer import LearningSanitizer
 from aiflywheel.tenancy.tenant import IsolationGuard, Tenant, TenantRegistry
 
@@ -55,6 +57,8 @@ class FlywheelEngine:
     sanitizer: LearningSanitizer = field(default_factory=LearningSanitizer)
     rewards: RewardTracker = field(default_factory=RewardTracker)
     floor: RealDataFloor = field(default_factory=RealDataFloor)
+    curator: Curator | None = None          # optional multi-stage intake valve
+    lift: LiftLedger = field(default_factory=LiftLedger)
     verifier: RewardVerifier | None = None
     _queue: list[Interaction] = field(default_factory=list)
 
@@ -101,6 +105,7 @@ class FlywheelEngine:
                     )
                 )
                 result.shared = True
+                self.lift.record_contribution(tenant.tenant_id)
             else:
                 result.reject_reason = clean.reason
 
@@ -115,6 +120,9 @@ class FlywheelEngine:
     def _flush(self) -> None:
         raw = self._queue
         self._queue = []
+        # multi-stage intake valve (reward → dedup → diversity), if configured.
+        if self.curator is not None:
+            raw = self.curator.curate(raw)
         # model-collapse defense: enforce the real-data floor BEFORE training.
         batch = self.floor.enforce(raw)
         if not batch:
@@ -143,10 +151,12 @@ class FlywheelEngine:
         """Improved model quality + cross-tenant learnings for a consumer."""
         tenant = self.registry.get(tenant_id)
         learnings = self.hub.distribute(tenant_id) if tenant.consumes else []
+        self.lift.record_gain(tenant_id, len(learnings))
         return {
             "model_quality": self.learner.quality(),
             "cross_learnings": learnings,
             "acceleration": self.accel.report(),
+            "lift": self.lift.lift(tenant_id),
         }
 
     def health(self) -> dict:

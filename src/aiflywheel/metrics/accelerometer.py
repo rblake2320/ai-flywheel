@@ -85,11 +85,24 @@ class Accelerometer:
             return "STALLING"          # quality plateaued relative to data spent
         return "STEADY"
 
+    def did_accelerate(self) -> bool:
+        """True if quality ever rose batch-over-batch (a saturated wheel that
+        climbed then plateaued still counts as having turned)."""
+        return any(
+            self._batches[i].model_quality > self._batches[i - 1].model_quality + 1e-6
+            for i in range(1, len(self._batches))
+        )
+
+    def peak_quality(self) -> float | None:
+        return max((b.model_quality for b in self._batches), default=None)
+
     def report(self) -> dict:
         latest = self._batches[-1] if self._batches else None
         return {
             "batches": len(self._batches),
             "status": self.status(),
+            "did_accelerate": self.did_accelerate(),
+            "peak_quality": self.peak_quality(),
             "delta": self.delta(),
             "marginal_value": self.marginal_value(),
             "latest_mean_reward": latest.mean_reward if latest else None,

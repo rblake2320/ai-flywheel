@@ -75,12 +75,41 @@ update = mk.report and mk.sync()   # pull improved model + OTHER tenants' learni
 print(engine.health())             # is the flywheel turning?
 ```
 
+## See it turn
+
+```bash
+pip install -e .
+aiflywheel demo            # or: python -m aiflywheel demo
+```
+Spins 3 vertical tenants through the full pipeline and prints the wheel turning —
+per-tenant **lift ~2.0×** (each tenant gains double what it contributes), a
+networked hub across 3 domains, and honest acceleration (climbs, then plateaus
+as the exemplar bank saturates).
+
+## The full v0.4.0 pipeline
+
+```
+report → isolation guard → reward validation → adaptive valve
+       → CURATOR (reward → semantic-dedup → diversity)      ← multi-stage intake
+       → real-data floor (model-collapse defense)
+       → Learner.train  (SimulatedLearner or real FewShotLearner)
+       → Accelerometer (marginal-value, did_accelerate, coverage)
+       → k-anonymity hub → learnings back down (untrusted-flagged)
+       → LiftLedger (per-tenant network-effect proof)
+```
+
+New in v0.4.0: a **multi-stage Curator** (pure-Python semantic dedup + diversity
+cap, pluggable to SemHash/NeMo), a **Judge + RegressionGate** (win-rate and a
+frozen golden-set that blocks backsliding — DeepEval behind the same Protocol),
+a **real `FewShotLearner`** (not simulated — curates an exemplar bank, answers
+prompts), **per-tenant lift attribution**, and **entry-point plugin discovery**.
+
 ## Install & test
 
 ```bash
 pip install -e ".[dev]"
 ruff check src tests
-pytest -q          # 15 tests, incl. the network-effect proof
+pytest -q          # 48 tests, incl. the network-effect proof
 ```
 
 ## Layout

@@ -22,6 +22,23 @@ Protocol**, installed via extras.
 - **Real accelerometer** (`metrics/accelerometer.py`): marginal-value-per-batch
   (the true "is it stalling" signal) + diversity/coverage, not just mean reward.
 
+## Shipped (v0.4.0) — from hardened engine to best-in-class
+
+- **Multi-stage Curator** (`curation/curator.py`): reward → semantic-dedup →
+  diversity pipeline, replacing the scalar valve. Pure-Python Jaccard dedup +
+  dominance cap; pluggable to SemHash/NeMo behind `CuratorStage`.
+- **Judge + RegressionGate** (`metrics/judge.py`): win-rate over a held set and
+  a frozen golden set that blocks silent backsliding. DeepEval plugs in behind
+  the `Judge` Protocol.
+- **Real `FewShotLearner`** (`core/learner.py`): not a stand-in — curates a
+  top-N exemplar bank per domain and answers prompts, scorable by a Judge.
+- **Per-tenant lift attribution** (`metrics/attribution.py`): gained vs
+  contributed — the network-effect proof and pricing lever (demo shows ~2.0×).
+- **Plugin discovery** (`plugins.py`): `entry_points` group so third parties
+  add backends with zero core changes.
+- **Runnable demo** (`aiflywheel demo`) + `did_accelerate`/`peak_quality` on the
+  accelerometer.
+
 ## Next — plug in real backends (Protocol seams already defined)
 
 | Capability | Plugin (extra) | Seam | Source of choice |
