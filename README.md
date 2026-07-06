@@ -104,12 +104,29 @@ frozen golden-set that blocks backsliding — DeepEval behind the same Protocol)
 a **real `FewShotLearner`** (not simulated — curates an exemplar bank, answers
 prompts), **per-tenant lift attribution**, and **entry-point plugin discovery**.
 
+## Real GPU training (proven)
+
+The `TRLLearner` backend (extra `[trainer]`) runs Hugging Face TRL SFT+LoRA
+behind the `Learner` protocol — real fine-tuning, not simulation. The engine
+curates a batch; `scripts/spark_train_worker.py` runs it on a GPU box and writes
+back a trained adapter + quality.
+
+```bash
+pip install -e ".[trainer]"
+python scripts/spark_train_worker.py --batch batch.jsonl \
+    --model HuggingFaceTB/SmolLM2-135M --adapter-dir ./adapter --out result.json
+```
+
+Proven end-to-end on an NVIDIA GB10 (Blackwell, CUDA 13): SmolLM2-135M + LoRA
+trained on-GPU (`device: cuda`), loss decreasing, a real LoRA adapter written.
+The worker auto-detects CUDA and falls back to CPU for tiny smoke runs.
+
 ## Install & test
 
 ```bash
 pip install -e ".[dev]"
 ruff check src tests
-pytest -q          # 48 tests, incl. the network-effect proof
+pytest -q          # 52 tests, incl. the network-effect proof + TRL backend
 ```
 
 ## Layout
