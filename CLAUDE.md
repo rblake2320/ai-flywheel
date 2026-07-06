@@ -40,6 +40,6 @@ pytest -q
 
 - Keep `FLYWHEEL.md` accurate and dated — update "Last Updated" when the
   architecture actually changes, based on verified system state, not vibes.
-- No credentials, tokens, or live IPs belong here even though the repo is
-  private — use placeholders if a path/host needs to be referenced generically.
+- No credentials, tokens, or live IPs belong here — this repo is PUBLIC, so use
+  placeholders if a path/host needs to be referenced generically.
 - Small, verifiable edits over sweeping rewrites.

@@ -52,6 +52,10 @@ class RemoteRecall:
     base_url: str                       # e.g. http://localhost:PORT
     timeout: float = 2.0
     min_hits: int = 1
+    # observability: failing open is right, but not silently — count fallbacks
+    # so a down brain is visible (the exact failure class MemoryWeb hid).
+    fallbacks: int = 0
+    last_error: str = ""
 
     def _post(self, path: str, body: dict) -> dict:
         data = json.dumps(body).encode()
@@ -66,7 +70,9 @@ class RemoteRecall:
         try:
             out = self._post("/recall", {"query": query, "k": k})
             return out.get("results", []) if isinstance(out, dict) else []
-        except Exception:  # noqa: BLE001 - fail open: brain down != flywheel down
+        except Exception as e:  # noqa: BLE001 - fail open: brain down != flywheel down
+            self.fallbacks += 1
+            self.last_error = str(e)
             return []
 
     def seen_before(self, query: str) -> bool:

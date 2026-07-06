@@ -80,12 +80,25 @@ def test_local_recall_wraps_whystore(tmp_path):
     assert rec.seen_before("memory regression") is True
 
 
-def test_remote_recall_fails_open_when_brain_down():
-    # no brain at this port → recall returns empty / not-seen, never raises
+def test_remote_recall_fails_open_but_counts():
+    # no brain at this port → recall returns empty / not-seen, never raises,
+    # BUT the fallback is counted so a down brain is visible, not silent.
     rec = RemoteRecall(base_url="http://127.0.0.1:59999", timeout=0.2)
     assert isinstance(rec, RecallProvider)
     assert rec.recall("anything") == []
     assert rec.seen_before("anything") is False
+    assert rec.fallbacks >= 1                     # counted, not silent
+    assert rec.last_error
+
+
+def test_engine_surfaces_recall_fallbacks():
+    rec = RemoteRecall(base_url="http://127.0.0.1:59999", timeout=0.2)
+    eng = FlywheelEngine(recall=rec)
+    eng.add_tenant(Tenant("t", domain="memory"))
+    from aiflywheel.core.interaction import Interaction
+    eng.seen_regression_before([Interaction(id="x", tenant_id="t", timestamp="",
+                                            domain="memory")])
+    assert eng.health()["recall_fallbacks"] >= 1
 
 
 def test_engine_prefers_injected_recall(tmp_path):

@@ -14,6 +14,12 @@ The full loop, per the corrected architecture:
 
 The engine is business-agnostic. Tenants (vertical copilots) are the only
 business-specific parts, and they only ever touch it through submit()/pull().
+
+CONCURRENCY: a FlywheelEngine assumes a SINGLE WRITER — one process calling
+submit()/flush(). It is not internally locked. With a live tenant feeding events
+AND a separate training worker, funnel writes through one owner (e.g. one ingest
+loop) or add external locking before wiring the second writer. Reads (health,
+pull) are safe alongside a single writer.
 """
 from __future__ import annotations
 
@@ -248,17 +254,20 @@ class FlywheelEngine:
             "promotions": self._promotions,
             "rollbacks": self._rollbacks,
             "why_cases": self.reflector.count() if self.reflector is not None else 0,
+            # visible recall health — a down brain is counted, not silent
+            "recall_fallbacks": getattr(self.recall, "fallbacks", 0),
         }
 
     # --- durability ---
     def save(self, path: str) -> None:
-        """Persist the flywheel's shareable momentum (hub + accelerometer)."""
+        """Durably persist ALL learned state (hub, accelerometer, threshold,
+        counters, lift ledger, trust stats) — atomic + fsync'd."""
         from aiflywheel.persistence.store import FlywheelStore
 
-        FlywheelStore(path).save(self.hub, self.accel)
+        FlywheelStore(path).save(self)
 
     def load(self, path: str) -> None:
-        """Rehydrate hub + accelerometer so the wheel keeps its momentum."""
+        """Rehydrate the full learned state so the wheel keeps its momentum."""
         from aiflywheel.persistence.store import FlywheelStore
 
-        FlywheelStore(path).load(self.hub, self.accel)
+        FlywheelStore(path).load(self)
