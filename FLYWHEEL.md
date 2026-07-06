@@ -53,12 +53,12 @@
 
 | System | IP | Role | VRAM |
 |--------|-----|------|------|
-| **DGX Spark 1** | 192.168.12.132 | Training, Inference | 120GB |
-| **DGX Spark 2** | 192.168.12.223 / 10.0.0.2 | Training, Inference | 120GB |
+| **DGX Spark 1** | <spark1-ip> | Training, Inference | 120GB |
+| **DGX Spark 2** | <spark2-ip> / <spark2-lan-ip> | Training, Inference | 120GB |
 | **Windows RTX 5090** | Local | Data Curation (NeMo) | 32GB |
 | **AWS** | Cloud | Backup, Overflow | Variable |
 
-### Key Directories (on Spark-1: 192.168.12.132)
+### Key Directories (on Spark-1: <spark1-ip>)
 
 ```
 ~/ai-business/
@@ -256,7 +256,7 @@ cd ~/ai-business/specialists/mary_kay && ./start_server.sh
 
 ### Sync to Spark-2
 ```bash
-rsync -avz ~/ai-business/shared/ rblake2320@10.0.0.2:~/ai-business/shared/
+rsync -avz ~/ai-business/shared/ <user>@<spark2-lan-ip>:~/ai-business/shared/
 ```
 
 ### Backup to AWS
