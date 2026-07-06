@@ -54,6 +54,12 @@ def demo() -> int:
           f"(did_accelerate={acc['did_accelerate']}, {acc['batches']} batches)")
     print(f"loop closure  : {h['promotions']} promotions, {h['rollbacks']} rollbacks "
           f"(self-corrects — a regressing train is reverted)")
+    sm = eng.self_model()
+    conf = sm.confidence()
+    print(f"self-model    : confidence {conf['score']} ({conf['verdict']}), "
+          f"self-check consistent={sm.self_check()['consistent']}")
+    gaps = sm.known_gaps()
+    print(f"knows it lacks: {gaps[0]}")
     print(f"hub           : {h['hub']['total_learnings']} learnings, "
           f"networked={h['hub']['is_networked']}, "
           f"domains={h['hub']['domains']}")

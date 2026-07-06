@@ -31,6 +31,23 @@ public repo are: (1) the WhyCase outbox schema, and (2) a thin HTTP/MCP client t
 the brain's `/recall`. No cortex logic, no event-log ownership, no second memory.
 Same rule as pre-patent protocols: decide/file before anything else crosses.
 
+## Shipped (v0.8.0) — operational self-awareness (a self-model)
+
+NOT sentience — a self-model in the engineering sense. `introspection/self_model.py`
+`SelfModel` lets the engine reason about ITSELF, every method grounded in real
+measured state (no invented confidence):
+
+- **capabilities()** — what faculties are actually wired (not what's possible).
+- **confidence()** — a computed self-trust score; LOW when data is thin,
+  synthetic-heavy, or recently self-corrected. The wheel knowing when not to be sure.
+- **known_gaps()** — its own blind spots stated plainly (no training yet, not
+  networked, no golden set, recall limb degraded, collapse risk).
+- **explain()** — why it self-corrected, from its own WhyCases.
+- **self_check()** — the deepest bit: detects contradictions between what it
+  believes about itself and what's actually true (decision-accounting mismatch,
+  claims-networked-but-isn't, unrecorded rollbacks). A self-model that can catch
+  itself being wrong.
+
 ## Shipped (v0.7.0) — brain-ready integration seams
 
 - **EventLogSource** (`ingest/event_log.py`): tails the brain's append-only event

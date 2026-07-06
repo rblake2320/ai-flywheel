@@ -242,6 +242,14 @@ class FlywheelEngine:
             "lift": self.lift.lift(tenant_id),
         }
 
+    def self_model(self):
+        """Introspection: a self-model the engine can query about itself —
+        capabilities, confidence, blind spots, and self-consistency. Operational
+        self-awareness (a self-model), NOT sentience."""
+        from aiflywheel.introspection.self_model import SelfModel
+
+        return SelfModel(self)
+
     def health(self) -> dict:
         """One call that says whether the flywheel is actually turning."""
         return {
