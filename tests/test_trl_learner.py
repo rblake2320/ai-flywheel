@@ -37,6 +37,19 @@ def test_empty_batch_is_noop():
     assert lr.train([]) == 0.0
 
 
+def test_preflight_defaults_on():
+    lr = TRLLearner()
+    assert lr.preflight is True and lr.allow_cpu is True
+
+
+@pytest.mark.skipif(not _HAS_TRL, reason="needs torch")
+def test_preflight_returns_a_device():
+    # real allocation probe — returns 'cuda' if a GPU alloc succeeds, else 'cpu'.
+    # This is the guard that prevents walking into an OOM on a contested GB10.
+    lr = TRLLearner(allow_cpu=True)
+    assert lr._preflight_cuda() in {"cuda", "cpu"}
+
+
 @pytest.mark.skipif(not _HAS_TRL, reason="trl not installed (install ai-flywheel[trainer])")
 def test_real_smoke_train():
     lr = TRLLearner(base_model="HuggingFaceTB/SmolLM2-135M", epochs=1.0)

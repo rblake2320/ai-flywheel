@@ -39,6 +39,8 @@ class TRLLearner:
         lora_alpha: int = 32,
         learning_rate: float = 2e-4,
         min_reward: float = 0.0,
+        preflight: bool = True,
+        allow_cpu: bool = True,
     ) -> None:
         self.base_model = base_model
         self.output_dir = output_dir or os.path.join(tempfile.gettempdir(), "aiflywheel-trl")
@@ -48,6 +50,13 @@ class TRLLearner:
         self.lora_alpha = lora_alpha
         self.learning_rate = learning_rate
         self.min_reward = min_reward
+        # preflight: real GPU allocation test before EVERY train (not just setup).
+        # On GB10 unified memory, cuda.is_available()==True does NOT mean usable —
+        # resident inference (a 120B shard, an Ollama model) can leave the flag
+        # green while a real allocation OOMs. allow_cpu keeps tiny smoke runs
+        # working where there's no GPU at all.
+        self.preflight = preflight
+        self.allow_cpu = allow_cpu
         self._quality = 0.0
         self._steps = 0
         self._adapter_path: str | None = None
@@ -82,12 +91,44 @@ class TRLLearner:
             })
         return rows
 
+    def _preflight_cuda(self) -> str:
+        """Real allocation test before training. Returns the device to use.
+
+        cuda.is_available() is necessary but NOT sufficient on GB10 unified
+        memory — GPU and system RAM share one pool, so resident inference can
+        leave the flag green while a real allocation OOMs. We do an actual small
+        allocation; if it fails we raise a clear error (naming the likely cause)
+        instead of letting the trainer crash mid-run or trip the OOM-killer
+        against a production inference server.
+        """
+        import torch
+
+        if not torch.cuda.is_available():
+            if self.allow_cpu:
+                return "cpu"
+            raise RuntimeError("CUDA not available and allow_cpu=False")
+        try:
+            probe = torch.zeros(1024, 512, device="cuda")  # ~2MB real allocation
+            del probe
+            torch.cuda.empty_cache()
+            return "cuda"
+        except torch.cuda.OutOfMemoryError as e:  # noqa: PERF203
+            raise RuntimeError(
+                "CUDA reports available but a 2MB probe allocation FAILED — the GPU "
+                "is memory-contested (e.g. resident inference on GB10 unified memory). "
+                "Target a free GPU (e.g. Spark2) or wait for memory to free. "
+                f"underlying: {e}"
+            ) from e
+
     def _run_sft(self, rows: list[dict]) -> float:
         # lazy, heavy imports — only when actually training
         import torch  # noqa: F401
         from datasets import Dataset
         from peft import LoraConfig
         from trl import SFTConfig, SFTTrainer
+
+        if self.preflight:
+            self._preflight_cuda()   # fail fast + safe if the GPU is contested
 
         resume = self._adapter_path  # continue from prior adapter if present
         ds = Dataset.from_list(rows)
