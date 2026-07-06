@@ -42,12 +42,17 @@ class Interaction:
     domain: str | None = None                   # generic vertical, e.g. "retail"
     cross_learning: str | None = None           # distilled, anonymized lesson
     tags: list[str] = field(default_factory=list)
+    # provenance is the #1 defense against model collapse: the engine must know
+    # whether an example is real human/production data or model-generated, so it
+    # can ACCUMULATE (keep a real-data floor) rather than REPLACE. Never train a
+    # batch that is all synthetic. See core/provenance.py.
+    provenance: str = "real"                    # real | human | synthetic | model
 
     # fields that may EVER leave a tenant — the allowlist. Anything not here
     # is private by construction.
     _SHAREABLE = frozenset(
         {"id", "tenant_id", "timestamp", "reward_score", "user_feedback",
-         "domain", "cross_learning", "tags"}
+         "domain", "cross_learning", "tags", "provenance"}
     )
 
     def to_shared(self) -> dict[str, Any]:

@@ -40,6 +40,7 @@ class FlywheelClient:
         cross_learning: str | None = None,
         timestamp: str = "",
         tags: list[str] | None = None,
+        provenance: str = "real",
     ) -> SubmitResult:
         """Report one interaction. Private text stays local; only signal crosses."""
         interaction = Interaction(
@@ -54,6 +55,7 @@ class FlywheelClient:
             domain=domain,
             cross_learning=cross_learning,
             tags=tags or [],
+            provenance=provenance,
         )
         return self.engine.submit(interaction)
 

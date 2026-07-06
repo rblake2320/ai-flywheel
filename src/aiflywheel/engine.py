@@ -22,6 +22,7 @@ from dataclasses import dataclass, field
 from aiflywheel.adaptive.threshold import AdaptiveThreshold
 from aiflywheel.core.interaction import Interaction
 from aiflywheel.core.learner import Learner, SimulatedLearner
+from aiflywheel.core.provenance import RealDataFloor, real_fraction
 from aiflywheel.core.reward import RewardTracker, RewardVerifier, clamp_reward
 from aiflywheel.learning.hub import CrossLearningHub, SharedLearning
 from aiflywheel.metrics.accelerometer import Accelerometer
@@ -53,6 +54,7 @@ class FlywheelEngine:
     guard: IsolationGuard = field(default_factory=IsolationGuard)
     sanitizer: LearningSanitizer = field(default_factory=LearningSanitizer)
     rewards: RewardTracker = field(default_factory=RewardTracker)
+    floor: RealDataFloor = field(default_factory=RealDataFloor)
     verifier: RewardVerifier | None = None
     _queue: list[Interaction] = field(default_factory=list)
 
@@ -111,12 +113,24 @@ class FlywheelEngine:
         return result
 
     def _flush(self) -> None:
-        batch = self._queue
+        raw = self._queue
         self._queue = []
+        # model-collapse defense: enforce the real-data floor BEFORE training.
+        batch = self.floor.enforce(raw)
+        if not batch:
+            # entire batch too synthetic to be safe — refuse, don't poison.
+            self.threshold.update()
+            return
         mean_reward = sum((i.reward_score or 0.0) for i in batch) / len(batch)
         n_sources = len({i.tenant_id for i in batch})
+        n_domains = len({(i.domain or "") for i in batch})
         self.learner.train(batch)
-        self.accel.record(mean_reward, len(batch), n_sources)
+        self.accel.record(
+            mean_reward, len(batch), n_sources,
+            model_quality=self.learner.quality(),
+            n_domains=n_domains,
+            real_fraction=real_fraction(batch),
+        )
         self.threshold.update()
 
     def flush(self) -> None:

@@ -19,12 +19,31 @@ simply never enters the shared pool. Better a lost lesson than a leak.
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass, field
+from typing import Protocol, runtime_checkable
 
 _EMAIL = re.compile(r"\b[\w.+-]+@[\w-]+\.[\w.-]+\b")
-_PHONE = re.compile(r"\b(?:\+?\d[\s-]?){7,}\d\b")
+_PHONE = re.compile(r"(?:\+?\d[\s.\-]?)?(?:\(\d{2,4}\)[\s.\-]?)?(?:\d[\s.\-]?){6,}\d")
 _CURRENCY = re.compile(r"[$€£]\s?\d[\d,]*(?:\.\d+)?")
-_LONG_DIGITS = re.compile(r"\b\d{5,}\b")           # ids, account numbers, codes
+_SSN = re.compile(r"\b\d{3}-\d{2}-\d{4}\b")
+_CARD = re.compile(r"\b(?:\d[ -]?){13,19}\b")       # card-like grouped digits
+_LONG_DIGITS = re.compile(r"\b\d{5,}\b")            # ids, account numbers, codes
+_ZERO_WIDTH = re.compile(r"[​-‏‪-‮﻿]")
+
+
+@runtime_checkable
+class PIIDetector(Protocol):
+    """Optional pluggable detector for contextual PII (names/orgs/locations).
+
+    Regex cannot see contextual PII; a real deployment plugs in Presidio or a
+    transformer NER here (extra `ai-flywheel[pii]`). `detect` returns spans of
+    text to redact. The default engine ships NO detector (regex-only core).
+    """
+
+    def detect(self, text: str) -> list[str]:
+        """Return substrings that should be redacted."""
+        ...
 
 
 @dataclass
@@ -44,23 +63,39 @@ class LearningSanitizer:
     hard_block: frozenset[str] = frozenset()
     # tenant-declared secret substrings to redact (soft: redacted, not blocked)
     secret_terms: frozenset[str] = frozenset()
+    # optional contextual-PII detector (Presidio/NER) — None = regex-only core
+    detector: PIIDetector | None = None
+
+    @staticmethod
+    def _normalize(text: str) -> str:
+        """NFKC-normalize + strip zero-width chars so homoglyph/hidden-char
+        evasion of the term filters can't slip proprietary content through."""
+        text = unicodedata.normalize("NFKC", text)
+        return _ZERO_WIDTH.sub("", text)
 
     def sanitize(self, text: str | None) -> SanitizeResult:
         if not text or not text.strip():
             return SanitizeResult(ok=False, text="", reason="empty")
 
         redactions: list[str] = []
-        scrubbed = text
+        scrubbed = self._normalize(text)
 
-        # tenant-declared secrets first (before regex mangles them)
+        # optional contextual PII (names/orgs/locations) — before regex
+        if self.detector is not None:
+            for span in self.detector.detect(scrubbed):
+                if span:
+                    scrubbed = scrubbed.replace(span, "[REDACTED]")
+                    redactions.append("pii_ner")
+
+        # tenant-declared secrets (before regex mangles them)
         for term in self.secret_terms:
             if term and term.lower() in scrubbed.lower():
                 scrubbed = re.sub(re.escape(term), "[REDACTED]", scrubbed, flags=re.I)
                 redactions.append("secret_term")
 
         for label, pat in (
-            ("email", _EMAIL), ("phone", _PHONE),
-            ("currency", _CURRENCY), ("long_digits", _LONG_DIGITS),
+            ("email", _EMAIL), ("ssn", _SSN), ("card", _CARD),
+            ("phone", _PHONE), ("currency", _CURRENCY), ("long_digits", _LONG_DIGITS),
         ):
             if pat.search(scrubbed):
                 scrubbed = pat.sub("[REDACTED]", scrubbed)

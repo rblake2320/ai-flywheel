@@ -1,6 +1,6 @@
 [project]
 name = "aiflywheel"
-version = "0.2.0"
+version = "0.3.0"
 description = "A horizontal, multi-tenant, business-agnostic AI data flywheel engine. Vertical copilots plug in as isolated tenants; each gets smarter from the anonymized learnings of all."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -11,6 +11,14 @@ dependencies = []
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "ruff>=0.6"]
+# --- real backends, all lazy-imported; core stays zero-dependency ---
+trainer = ["trl", "transformers", "peft", "datasets", "accelerate"]  # Learner: SFT/DPO/GRPO
+unsloth = ["unsloth"]                                                 # faster LoRA under trainer
+eval = ["deepeval"]                                                   # accelerometer: LLM-as-judge
+dedup = ["semhash", "model2vec"]                                      # curation: numpy-only, no torch
+pii = ["presidio-analyzer", "presidio-anonymizer"]                   # sanitizer: contextual NER
+fast = ["msgspec"]                                                    # faster schemas than pydantic
+otel = ["opentelemetry-api", "opentelemetry-sdk"]                    # trace the loop
 
 [project.urls]
 Homepage = "https://github.com/rblake2320/ai-flywheel"
