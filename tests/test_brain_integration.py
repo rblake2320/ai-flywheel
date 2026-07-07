@@ -18,7 +18,7 @@ from aiflywheel.tenancy.tenant import Tenant
 def test_event_maps_to_interaction():
     it = event_to_interaction({
         "id": "e1", "tenant_id": "blake-os", "input": "recall my deadlines",
-        "output": "BPC patent due 2027-04-03", "reward": 0.9, "domain": "memory",
+        "output": "quarterly review reminder example", "reward": 0.9, "domain": "memory",
     })
     assert it is not None
     assert it.tenant_id == "blake-os"
